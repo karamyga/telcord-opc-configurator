@@ -7,8 +7,7 @@ __pycache__/
 data/*.db
 
 # Internal data / prices
-data/*.xlsx
-data/*.xls
+data/*.db
 
 # Secrets
 .env
