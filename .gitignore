@@ -1,0 +1,30 @@
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# Runtime / databases
+*.db
+data/*.db
+
+# Internal data / prices
+data/*.xlsx
+data/*.xls
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python environments
+.venv/
+venv/
+backend/.venv/
+
+# Deployment packages
+*.zip
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
