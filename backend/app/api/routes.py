@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from ..database import SessionLocal
-from ..models import AppSetting, CableVariant, ComponentPrice
-from ..schemas import ConfigurationInput, PartialConfiguration
+from ..models import AppSetting, CableVariant, ComponentPrice, ExchangeRate
+from ..schemas import ConfigurationInput, ExchangeRateUpdate, PartialConfiguration
 from ..services.generators import generate_name, generate_sku
 from ..services.pricing import calculate_price
 from ..services.rules import get_available_options, validate_configuration
@@ -50,6 +51,7 @@ def prices(db: Session=Depends(get_db)):
 @router.get("/settings/public")
 def public_settings(db: Session=Depends(get_db)):
     settings = {item.key: item.value for item in db.scalars(select(AppSetting))}
+    exchange_rate = db.scalar(select(ExchangeRate).where(ExchangeRate.pair == "USD/RUB"))
     production_keys = (
         "production_status", "production_days_min", "production_days_max",
         "production_title", "production_message",
@@ -64,6 +66,17 @@ def public_settings(db: Session=Depends(get_db)):
             "message": settings["production_message"],
         }
     return {
-        "exchange_rate_usd_rub": settings.get("exchange_rate_usd_rub"),
+        "exchange_rate_usd_rub": format(exchange_rate.rate.normalize(), "f") if exchange_rate else None,
         "production": production,
     }
+
+@router.put("/settings/exchange-rate")
+def update_exchange_rate(payload: ExchangeRateUpdate, db: Session=Depends(get_db)):
+    exchange_rate = db.scalar(select(ExchangeRate).where(ExchangeRate.pair == "USD/RUB"))
+    if exchange_rate is None:
+        raise HTTPException(status_code=404, detail="Курс USD/RUB не найден в справочнике")
+    exchange_rate.rate = payload.rate
+    exchange_rate.effective_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(exchange_rate)
+    return {"pair": exchange_rate.pair, "rate": format(exchange_rate.rate.normalize(), "f")}

@@ -58,9 +58,9 @@ def test_client_email_builder_uses_effective_price_only() -> None:
 
 def test_client_email_uses_full_telcord_article_and_product_name() -> None:
     html = source()
-    assert "function specificationFullProductName" in html
     email_builder = html[html.index("function specificationEmailHtml") : html.index("async function copySpecificationForEmail")]
-    assert "specificationFullProductName(item)" in email_builder
+    assert "specificationArticle(item)" in email_builder
+    assert "item.productName" in email_builder
 
 
 def test_switching_price_mode_requires_clear_confirmation() -> None:
@@ -131,6 +131,45 @@ def test_price_mode_header_keeps_stable_geometry() -> None:
     assert ".result-card.kp-mode:before" in html
 
 
+def test_kp_header_reserves_badge_space_and_has_fixed_height() -> None:
+    html = source()
+    assert "resultModeBadge.classList.toggle('is-visible',kpMode)" in html
+    assert ".kp-mode-badge{visibility:hidden" in html
+    assert ".kp-mode-badge.is-visible{visibility:visible}" in html
+    assert ".result-header{height:86px;min-height:86px" in html
+    assert "background:linear-gradient(to bottom,#fff6f5 0 86px,#fff 86px)" in html
+
+
+def test_specification_header_keeps_kp_details_space_in_both_modes() -> None:
+    html = source()
+    assert 'class="specification-kp-details ${kpMode?\'is-visible\':\'\'}"' in html
+    assert "В копирование для письма попадут клиентские цены" in html
+    assert "Срок изготовления:" in html
+    assert ".specification-head{height:96px;min-height:96px" in html
+    assert ".specification-kp-details{display:grid;gap:1px;visibility:hidden" in html
+    assert ".specification-kp-details.is-visible{visibility:visible}" in html
+
+
+def test_card_header_dividers_are_full_width_without_moving_content() -> None:
+    html = source()
+    assert ".page-header{margin-left:-24px;margin-right:-24px;padding-left:24px;padding-right:24px;border-bottom:1px solid #e7ebee}" in html
+    assert ".result-header{width:calc(100% + 48px);border-bottom:1px solid #e7ebee}" in html
+    assert ".page-header{margin-left:-18px;margin-right:-18px;padding-left:18px;padding-right:18px}" in html
+    assert ".result-header{width:calc(100% + 36px)}" in html
+
+
+def test_workspace_columns_are_content_independent() -> None:
+    html = source()
+    assert ".workspace{grid-template-columns:minmax(0,2.2fr) minmax(340px,1fr);" in html
+    assert ".workspace>.configurator,.workspace>.result-card,.workspace>.specification-card{min-width:0;width:100%}" in html
+    assert "column-gap:24px" in html
+
+
+def test_page_scrollbar_does_not_shift_centered_workspace() -> None:
+    html = source()
+    assert "html{overflow-y:scroll;scrollbar-gutter:stable}" in html
+
+
 def test_production_term_freshness_has_required_age_bands() -> None:
     html = source()
     assert "function productionTermFreshness" in html
@@ -145,8 +184,48 @@ def test_production_term_freshness_has_required_age_bands() -> None:
 def test_client_copy_excludes_production_timestamp_but_internal_copy_includes_freshness() -> None:
     html = source()
     email_builder = html[html.index("function specificationEmailHtml") : html.index("async function copySpecificationForEmail")]
-    assert "productionLeadTime()" in email_builder
+    assert "emailProductionLeadTime()" in email_builder
     assert "productionTermUpdatedAt" not in email_builder
     assert "productionTermFreshness" not in email_builder
     internal_builder = html[html.index("function specificationCopyText") : html.index("function configurationCopyText")]
     assert "productionTermFreshness" in internal_builder
+
+
+def test_exchange_rate_control_uses_existing_backend_reference() -> None:
+    html = source()
+    assert html.index('id="exchangeRateButton"') < html.index('id="productionLoad"')
+    assert "1$ = — руб." in html
+    assert "data.exchange_rate_usd_rub" in html
+    assert "fetch('/api/settings/exchange-rate',{method:'PUT'" in html
+    assert "localStorage" not in html[html.index("function renderExchangeRate") : html.index("function toggleExchangeRatePopover")]
+
+
+def test_exchange_rate_control_accepts_decimal_comma_and_formats_rubles() -> None:
+    html = source()
+    assert "replace(',','.')" in html
+    assert "minimumFractionDigits:2,maximumFractionDigits:2" in html
+    assert "1$ = ${formatted} руб." in html
+
+
+def test_kp_email_copy_is_compact_and_separates_article_from_description() -> None:
+    html = source()
+    email_builder = html[html.index("function specificationEmailHtml") : html.index("function specificationEmailText")]
+    assert "Коммерческое предложение" not in email_builder
+    assert "display:inline-table" in email_builder
+    assert "width:100%" not in email_builder
+    assert "font-weight:600" in email_builder
+    assert "specificationArticle(item)" in email_builder
+    assert "item.productName" in email_builder
+    assert '</span><br><span style="font-weight:400;line-height:1.35">' in email_builder
+    assert '<div style="font-weight:600;line-height:1.35">' not in email_builder
+    assert "${index+1}. ${esc(specificationArticle(item))}" not in email_builder
+
+
+def test_kp_email_production_term_adds_two_calendar_days() -> None:
+    html = source()
+    assert "function emailProductionLeadTime" in html
+    assert "value*7+2" in html
+    assert "value+2" in html
+    assert "pluralizeDays" in html
+    email_builder = html[html.index("function specificationEmailHtml") : html.index("async function copySpecificationForEmail")]
+    assert "emailProductionLeadTime()" in email_builder

@@ -1,5 +1,15 @@
 from decimal import Decimal
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import BaseModel, Field, field_serializer, field_validator
+
+class ExchangeRateUpdate(BaseModel):
+    rate: Decimal = Field(gt=0)
+
+    @field_validator("rate", mode="before")
+    @classmethod
+    def accept_decimal_comma(cls, value):
+        if isinstance(value, str):
+            value = value.strip().replace(",", ".")
+        return value
 
 class PartialConfiguration(BaseModel):
     fiber_type: str | None = None

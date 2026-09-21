@@ -4,7 +4,7 @@ from sqlalchemy import delete, select
 
 from app.database import SessionLocal
 from app.main import app
-from app.models import AppSetting
+from app.models import AppSetting, ExchangeRate
 
 client = TestClient(app)
 
@@ -61,3 +61,43 @@ def test_public_settings_fallback_when_production_is_missing():
 
 def test_seeded_exchange_rate_is_public():
     assert client.get("/api/settings/public").json()["exchange_rate_usd_rub"] == "90"
+
+def test_public_exchange_rate_uses_pricing_reference_row():
+    with SessionLocal() as db:
+        rate = db.scalar(select(ExchangeRate).where(ExchangeRate.pair == "USD/RUB"))
+        original = rate.rate
+        rate.rate = "83.5000"
+        db.commit()
+    try:
+        response = client.get("/api/settings/public")
+        assert response.status_code == 200
+        assert response.json()["exchange_rate_usd_rub"] == "83.5"
+    finally:
+        with SessionLocal() as db:
+            rate = db.scalar(select(ExchangeRate).where(ExchangeRate.pair == "USD/RUB"))
+            rate.rate = original
+            db.commit()
+
+@pytest.mark.parametrize(("entered", "expected"), [("83,50", "83.5"), ("84.25", "84.25")])
+def test_exchange_rate_can_update_existing_pricing_reference(entered, expected):
+    with SessionLocal() as db:
+        rate = db.scalar(select(ExchangeRate).where(ExchangeRate.pair == "USD/RUB"))
+        original = rate.rate
+    try:
+        response = client.put("/api/settings/exchange-rate", json={"rate": entered})
+        assert response.status_code == 200
+        assert response.json() == {"pair": "USD/RUB", "rate": expected}
+        with SessionLocal() as db:
+            rates = list(db.scalars(select(ExchangeRate).where(ExchangeRate.pair == "USD/RUB")))
+            assert len(rates) == 1
+            assert str(rates[0].rate.normalize()) == expected
+    finally:
+        with SessionLocal() as db:
+            rate = db.scalar(select(ExchangeRate).where(ExchangeRate.pair == "USD/RUB"))
+            rate.rate = original
+            db.commit()
+
+@pytest.mark.parametrize("entered", ["", "0", "-1", "not-a-number"])
+def test_exchange_rate_rejects_invalid_values(entered):
+    response = client.put("/api/settings/exchange-rate", json={"rate": entered})
+    assert response.status_code == 422
