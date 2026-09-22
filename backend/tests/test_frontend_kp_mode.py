@@ -153,9 +153,9 @@ def test_specification_header_keeps_kp_details_space_in_both_modes() -> None:
 def test_card_header_dividers_are_full_width_without_moving_content() -> None:
     html = source()
     assert ".page-header{margin-left:-24px;margin-right:-24px;padding-left:24px;padding-right:24px;border-bottom:1px solid #e7ebee}" in html
-    assert ".result-header{width:calc(100% + 48px);border-bottom:1px solid #e7ebee}" in html
+    assert ".result-card{background:linear-gradient(to bottom,#fff 0 85px,#e7ebee 85px 86px,#fff 86px)}" in html
+    assert ".result-card.kp-mode{background:linear-gradient(to bottom,#fff6f5 0 85px,#f1d9d7 85px 86px,#fff 86px)}" in html
     assert ".page-header{margin-left:-18px;margin-right:-18px;padding-left:18px;padding-right:18px}" in html
-    assert ".result-header{width:calc(100% + 36px)}" in html
 
 
 def test_workspace_columns_are_content_independent() -> None:
